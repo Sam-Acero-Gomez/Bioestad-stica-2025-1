@@ -1,0 +1,105 @@
+---
+title: "Tarea 7"
+author: "Juanes"
+date: "2025-03-26"
+output: html_document
+---
+
+# HOLA!!
+Bienvenidos a mi tarea de Modelos logisticos!!
+
+Primero se cargan todas las librerias necesarias para los analisis y graficos.
+
+```{r}
+library(effects)
+library(carData)
+library(ggpubr)
+library(MASS)
+library(patchwork)
+
+```
+
+## Procesamiento de la Data
+
+Cambiamos unicamente la columna de Suelo a columnas "dummy" para hacer el analisis.
+
+```{r}
+df<- BioModelo
+
+clas_dummy<- model.matrix(~factor(df$suelo))
+
+df<- data.frame(df, clas_dummy[,2:3])
+
+print(head(df))
+
+```
+## Modelo Logisitco MUltiple
+Realizamos el modelo logisitco multiple con la funcion ```glm() ```
+y imprimimos los resultados.
+
+```{r}
+modelo_log<- glm(presencia_especie~ temperatura+humedad+ph_suelo+desarrollo_planta+
+                   factor.df.suelo.Arenoso+factor.df.suelo.Limoso,
+                 family = "binomial", data= df)
+
+summary(modelo_log)
+
+```
+Encontramos que, OH SORPRESA, el modelo es pésimo y ninguna variable se ajusta es un predictor significativo de la presencia o ausencia de la especie.
+
+Podemos visualizar el modelo en la siguiente grafica:
+```{r}
+plot(modelo_log)
+p1<- ggplot(data= df, aes(x= humedad, y= presencia_especie, color = factor.df.suelo.Arenoso ))+
+  facet_grid(~factor.df.suelo.Limoso)+
+  geom_smooth(method = "glm")+
+  geom_point()
+p1
+  
+```
+
+
+## Evaluación del Modelo
+Primero se transforman los ceficientes a probabilidades para poder leerlos...
+
+```{r}
+exp(coef(modelo_log))
+
+odds<- exp(coef(modelo_log))/(1+exp(coef(modelo_log)))
+
+```
+Recordemos que ninguno de los valores de los coefiscientes son fiables puesto que no son significativos.
+
+### Evaluadores basados en Matriz de Confusión
+
+Para poder evaluar el modelo calculamos primero la matriz de confusión con el fin de poder evaluar cuantitativamente la presición del modelo. Para esto primero calculamos las predicciones del modelo en una nueva columna ($$ \alpha = 0.5$$)
+
+```{r}
+
+df$Predicciones <- predict(modelo_log, type = "response")
+
+df$Clasificacion<- ifelse(df$Predicciones > 0.5, 1, 0)
+print(head(df))
+
+```
+```{r}
+tablaconf<- table(Real= df$presencia_especie, Predecido= df$Clasificacion)
+tablaconf
+```
+Ahora si podemos calcular la precision, sensibilidad y especificidad del modelo
+
+```{r}
+precision <- sum(diag(tablaconf)) / sum(tablaconf)
+sensibilidad <- tablaconf[2, 2] / sum(tablaconf[2, ])
+especificidad <- tablaconf[1, 1] / sum(tablaconf[1, ])
+
+print("Presicion")
+print(precision)
+print("Sensibilidad")
+print(sensibilidad)
+print("Especificidad")
+print(especificidad)
+```
+De estos valores podemos decir que el modelo predice correctamente la presencia o ausencia de la especie apenas ligeramente mejor que el asar "Presicion = 0.5275".
+La Sensibilidad y Especificidad refieren la razon entre verdaderos positivos y verdaderos negativos (verdaderamente presente o ausente) vs. los falsos positivos y negativos del modelo. y en general podemos observar como el modelo no es muy util para predecir ninguno.
+
